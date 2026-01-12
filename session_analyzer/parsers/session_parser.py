@@ -89,6 +89,15 @@ class SessionParser:
                 content_items, message_type
             )
 
+            # 提取用户查询内容
+            user_query = None
+            if user_origin_query and user_origin_query.strip():
+                user_query = user_origin_query
+            elif message_type == MessageType.USER_QUERY:
+                # 如果没有userOriginQuery但是消息类型是USER_QUERY，
+                # 尝试从text_content中提取用户任务描述
+                user_query = self._extract_user_query_from_content(text_content)
+
             # 创建Message对象
             message = Message(
                 message_id=str(message_id) if message_id else None,
@@ -96,7 +105,7 @@ class SessionParser:
                 role=role,
                 message_type=message_type,
                 content=content_str,
-                user_query=user_origin_query if user_origin_query else None,
+                user_query=user_query,
                 tool_calls=tool_calls,
                 tool_results=tool_results,
                 create_time=create_time,
@@ -154,6 +163,51 @@ class SessionParser:
 
         # 默认返回ASSISTANT
         return MessageType.ASSISTANT
+
+    def _extract_user_query_from_content(self, text_content: str) -> Optional[str]:
+        """
+        从content中提取用户查询内容
+
+        Args:
+            text_content: 文本内容
+
+        Returns:
+            用户查询字符串
+        """
+        if not text_content:
+            return None
+
+        # 如果包含user_queried_standard_task标签，识别任务类型
+        if "user_queried_standard_task" in text_content:
+            # 根据关键词识别任务类型
+            if "单元测试" in text_content or "单测" in text_content:
+                return "编写单元测试"
+            elif "检查代码问题" in text_content and "修复与优化" in text_content:
+                return "代码审查与优化"
+            elif "代码审查" in text_content or "review" in text_content.lower():
+                return "代码审查"
+            elif "修复" in text_content or "fix" in text_content.lower():
+                return "修复代码问题"
+            elif "重构" in text_content or "refactor" in text_content.lower():
+                return "代码重构"
+            else:
+                return "代码相关任务"
+
+        # 从普通用户输入中提取，跳过HTML注释和标签
+        lines = text_content.split('\n')
+        for line in lines:
+            line = line.strip()
+            # 跳过空行、HTML注释、XML标签
+            if (line and
+                not line.startswith('<!--') and
+                not line.startswith('<') and
+                not line.startswith('```')):
+                # 返回第一个有效的文本行
+                return line[:100]
+
+        # 默认返回前100个字符（移除换行符）
+        cleaned = ' '.join(text_content.split())
+        return cleaned[:100].strip() if cleaned else None
 
     def _truncate_content(self, content: str) -> str:
         """

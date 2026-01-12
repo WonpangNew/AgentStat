@@ -2,7 +2,7 @@
 代码行数统计器
 """
 import re
-from typing import Dict, List
+from typing import Dict, List, Optional
 from loguru import logger
 
 from ..models.message import Message, ToolType, ToolCall, ToolResult
@@ -232,6 +232,3 @@ class LineCounter:
         if tool_result.failed or not tool_result.content:
             return 0
         return TextUtils.count_lines(tool_result.content)
-
-
-from typing import Optional
